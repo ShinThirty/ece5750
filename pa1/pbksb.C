@@ -5,14 +5,12 @@ typedef struct {
   double *b;
   int n,p;
   char *pse;
-  // Barrier
-  BARDEC(bar)
 } GM;
 
 GM *gm;
 
 void pbksb(void) {
-  register int i,j,start,end;
+  register int i,j;
   register double sum;
   int pid,block;
   double **a,*b;
@@ -22,25 +20,22 @@ void pbksb(void) {
   b = gm->b;
   n = gm->n;
   p = gm->p;
-  block = n/p;
-  start = block*pid;
-  end = start+block-1;
 
-  int curRow = n-1;
+  //--------------------------------------------------
+  // Parallelize the consecutive substract operations
+  //--------------------------------------------------
 
-  while (curRow >= 0) {
-    if (curRow >= start && curRow <= end) {
-      b[curRow] = b[curRow]/a[curRow][curRow];
+  for (i = n-p+pid; i >= pid; i -= p)
+  {
+    sum = b[i];
+    for (j = n-1; j > i; j--)
+    {
+      WAITPAUSE(gm->pse[j])
+      sum -= a[i][j] * b[j];
     }
- 
-    BARRIER(gm->bar, p)
- 
-    for (i = end; i >= start; i--) {
-      if (i < curRow)
-          b[i] -= a[i][curRow] * b[curRow];
-    }
-    
-    curRow--;
+
+    b[i] = sum / a[i][i];
+    SETPAUSE(gm->pse[i])
   }
 
 }
@@ -74,9 +69,6 @@ int main(int argc,char **argv) {
     count++;
   }
   gm->pse = (char*)G_MALLOC(n*sizeof(char));
-  // Initialize the barrier
-  BARINIT(gm->bar)
-
   for(i = 0; i < n; i++)
     CLEARPAUSE(gm->pse[i])
   for(i = 0; i < p-1; i++)
