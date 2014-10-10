@@ -5,8 +5,6 @@ typedef struct {
   double *b;
   int n,p;
   char *pse;
-  // Current row under manipulation
-  int curRow;
   // Barrier
   BARDEC(bar)
 } GM;
@@ -28,18 +26,21 @@ void pbksb(void) {
   start = block*pid;
   end = start+block-1;
 
-  while (gm->curRow >= 0) {
-    if (gm->curRow >= start && gm->curRow <= end) {
-      b[gm->curRow] = b[gm->curRow]/a[gm->curRow][gm->curRow];
-      gm->curRow--; // No need for lock
+  int curRow = n-1;
+
+  while (curRow >= 0) {
+    if (curRow >= start && curRow <= end) {
+      b[curRow] = b[curRow]/a[curRow][curRow];
     }
  
     BARRIER(gm->bar, p)
  
     for (i = end; i >= start; i--) {
-      if (i <= gm->curRow)
-          b[i] -= a[i][gm->curRow+1] * b[gm->curRow+1];
+      if (i < curRow)
+          b[i] -= a[i][curRow] * b[curRow];
     }
+    
+    curRow--;
   }
 
 }
@@ -73,9 +74,6 @@ int main(int argc,char **argv) {
     count++;
   }
   gm->pse = (char*)G_MALLOC(n*sizeof(char));
-  // Initialize gm->curRow to n-1
-  gm->curRow = n-1;
-
   // Initialize the barrier
   BARINIT(gm->bar)
 
