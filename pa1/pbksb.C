@@ -5,6 +5,10 @@ typedef struct {
   double *b;
   int n,p;
   char *pse;
+  
+  // 1D array mapped from a
+  double * a_prime;
+
 } GM;
 
 GM *gm;
@@ -12,32 +16,45 @@ GM *gm;
 void pbksb(void) {
   register int i,j;
   register double sum;
-  int pid,block;
-  double **a,*b;
+  int pid;
+  double *b;
   int n,p;
   GET_PID(pid);
-  a = gm->a;
   b = gm->b;
   n = gm->n;
   p = gm->p;
+  double *a_prime;
+  a_prime = gm->a_prime;
 
   //--------------------------------------------------
   // Parallelize the consecutive substract operations
   //--------------------------------------------------
-
   for (i = n-p+pid; i >= pid; i -= p)
   {
     sum = b[i];
     for (j = n-1; j > i; j--)
     {
       WAITPAUSE(gm->pse[j])
-      sum -= a[i][j] * b[j];
+      sum -= a_prime[(n-i) * (n-1-i)/2 + (n-1-j)] * b[j];
     }
 
-    b[i] = sum / a[i][i];
+    b[i] = sum / a_prime[(n-i) * (n-1-i)/2 + (n-1-i)];
     SETPAUSE(gm->pse[i])
   }
 
+}
+
+//--------------------------------------------------
+// Map 2D array a to 1D array a_prime
+//--------------------------------------------------
+void mapping(void)
+{
+  int x,y;
+  int n = gm->n;
+
+  for (x = n-1; x >= 0; x--)
+    for (y = n-1; y >= 0; y--)
+      gm->a_prime[(n-x) * (n-1-x)/2 + (n-1-y)] = gm->a[x][y];
 }
 
 int main(int argc,char **argv) {
@@ -63,6 +80,13 @@ int main(int argc,char **argv) {
        count++;
     }
   }
+
+  //-----------------------------------------------
+  // Create 1D array a_prime and map a to a_prime
+  //-----------------------------------------------
+  gm->a_prime = (double*)G_MALLOC((n+1)*n/2*sizeof(double))
+  mapping();
+
   b = gm->b = (double*)G_MALLOC(n*sizeof(double));
   for(i = 0; i < n; i++) {
     b[i] = count;
@@ -84,6 +108,7 @@ int main(int argc,char **argv) {
     G_FREE(a[i],n*sizeof(double))
   G_FREE(a,n*sizeof(double*))
   G_FREE(b,n*sizeof(double))
+  G_FREE(gm->a_prime, (n+1)*n/2*sizeof(double))
   MAIN_END
   return 0;
 }
