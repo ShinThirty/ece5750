@@ -35,3 +35,4 @@ qsub
 *.c
 pa.zip
 run
+nqueen
