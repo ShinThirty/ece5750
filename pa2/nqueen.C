@@ -16,7 +16,7 @@ void printSolution(char** board, int n)
  * Note that this function is called when col queens are already 
  * placed in columns from 0 to col-1. So we need to check only left 
  * side for attacking queens. */
-char isSafe(char** board, int row, int col, int n)
+char isSafe(char** board, int n, int row, int col)
 {
     int i, j;
 
@@ -44,8 +44,47 @@ char isSafe(char** board, int row, int col, int n)
     return -1;
 }
 
-void nqueen()
+/* Recursive function to solve n quenns problem. */
+char solveNQ(char** board, int n, int col)
 {
+    // Base case: if all queens are placed then return true
+    if (col >= n)
+        return -1;
+
+    // Consider this column and try placing the queen in all
+    // columns one by one
+    int i;
+    for (i = 0; i < n; i++)
+    {
+        if (isSafe(board, n, i, col))
+        {
+            board[i][col] = 1;
+
+            if (solveNQ(board, n, col+1))
+                return -1;
+
+            board[i][col] = 0;
+        }
+    }
+
+    // If the queen cannot be placed in any rows in this column,
+    // return false
+    return 0;
+}
+
+/* This function solves the NQ problem by backtracking. It returns 0 
+ * no solutions are found and -1 if at least one solution exists. It also
+ * prints out one of the feasible solutions.*/
+char nqueen(char** board, int n)
+{
+    if (!solveNQ(board, n, 0))
+    {
+        printf("Solution does not exist!\n");
+        return 0;
+    }
+
+    printSolution(board, n);
+    return -1;
 
 }
 
@@ -60,15 +99,20 @@ int main(int argc, char** argv)
 
     // Generate the chessboard and initialize
     int n = atoi(argv[1]);
-    char** chessboard = (char**)G_MALLOC(n*sizeof(char*));
+    char** chessboard = (char**)G_MALLOC(n*sizeof(char*))
     int i, j;
     for (i = 0; i < n; i++)
     {
-        chessboard[i] = (char*)G_MALLOC(n*sizeof(char));
+        chessboard[i] = (char*)G_MALLOC(n*sizeof(char))
         for (j = 0; j < n; j++)
             chessboard[i][j] = 0;
     }
     
     // Place the queens and print out the solution
-    nqueen();
+    nqueen(chessboard, n);
+
+    // Free the chessboard
+    for (i = 0; i < n; i++)
+        G_FREE(chessboard[i], n*sizeof(char))
+    G_FREE(chessboard, n*sizeof(char*))
 }
