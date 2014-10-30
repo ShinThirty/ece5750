@@ -1,5 +1,11 @@
 MAIN_ENV
 
+/* Temporary global variables */
+int nSol = 0;
+int prof = 0;
+char* bestSolution;
+int bestProf = 0;
+
 /* A function to print solutions. */
 void printSolution(char** board, int n)
 {
@@ -8,6 +14,21 @@ void printSolution(char** board, int n)
     {
         for (j = 0; j < n; j++)
             printf(" %d ", board[i][j]);
+        printf("\n");
+    }
+}
+
+/* A function to print the total number of solutions, the solution with
+ * the largest profit, and its corresponding profit. */
+void printBestSolution(char* bestSolution, int n)
+{
+    int i, j;
+    printf("Total # of Solutions: %d\n", nSol);
+    printf("The Largest Profit: %d\n", bestProf);
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+            printf(" %d ", bestSolution[i*n+j]);
         printf("\n");
     }
 }
@@ -45,47 +66,40 @@ char isSafe(char** board, int n, int row, int col)
 }
 
 /* Recursive function to solve n quenns problem. */
-char solveNQ(char** board, int n, int col)
+void solveNQ(char** board, int n, int col)
 {
-    // Base case: if all queens are placed then return true
+    // Base case: all queens are placed
     if (col >= n)
-        return -1;
+    {
+        nSol++;
+
+        // Check the profit and change the bestSolution accordingly
+        if (prof > bestProf)
+        {
+            int r, c;
+            for(r = 0; r < n; r++)
+                for (c = 0; c < n; c++)
+                    bestSolution[r*n+c] = board[r][c];
+            bestProf = prof;
+        }
+
+        return;
+    }
 
     // Consider this column and try placing the queen in all
-    // columns one by one
+    // rows one by one
     int i;
     for (i = 0; i < n; i++)
-    {
         if (isSafe(board, n, i, col))
         {
             board[i][col] = 1;
-
-            if (solveNQ(board, n, col+1))
-                return -1;
-
+            // Add profit
+            prof += (i-col > 0) ? (i-col) : (col-i);
+            solveNQ(board, n, col+1);
             board[i][col] = 0;
+            // Remove profit
+            prof -= (i-col > 0) ? (i-col) : (col-i);
         }
-    }
-
-    // If the queen cannot be placed in any rows in this column,
-    // return false
-    return 0;
-}
-
-/* This function solves the NQ problem by backtracking. It returns 0 
- * no solutions are found and -1 if at least one solution exists. It also
- * prints out one of the feasible solutions.*/
-char nqueen(char** board, int n)
-{
-    if (!solveNQ(board, n, 0))
-    {
-        printf("Solution does not exist!\n");
-        return 0;
-    }
-
-    printSolution(board, n);
-    return -1;
-
 }
 
 int main(int argc, char** argv)
@@ -107,12 +121,21 @@ int main(int argc, char** argv)
         for (j = 0; j < n; j++)
             chessboard[i][j] = 0;
     }
+
+    // Generate the best solution board storage
+    bestSolution = (char*)G_MALLOC(n*n*sizeof(char))
     
-    // Place the queens and print out the solution
-    nqueen(chessboard, n);
+    // Place the queens
+    solveNQ(chessboard, n, 0);
+
+    // Print best solution
+    printBestSolution(bestSolution, n);
 
     // Free the chessboard
     for (i = 0; i < n; i++)
         G_FREE(chessboard[i], n*sizeof(char))
     G_FREE(chessboard, n*sizeof(char*))
+
+    // Free the bestSolution
+    G_FREE(bestSolution, n*n*sizeof(char))
 }
