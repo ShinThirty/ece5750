@@ -96,14 +96,16 @@ int main(int argc, char** argv)
 
     unsigned int t1, t2;
     CLOCK(t1)
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("Usage: nqueen <size>\nAborting...\n");
+        printf("Usage: nqueen <size> <nProc>\nAborting...\n");
         exit(0);
     }
 
     // Generate the chessboard and initialize
     int n = atoi(argv[1]);
+    int p = atoi(argv[2]);
+
     char** chessboard = (char**)G_MALLOC(n*sizeof(char*))
     int i, j;
     for (i = 0; i < n; i++)
