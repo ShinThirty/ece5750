@@ -105,6 +105,9 @@ void solveNQ(char** board, int n, int col)
 int main(int argc, char** argv)
 {
     MAIN_INITENV
+
+    unsigned int t1, t2;
+    CLOCK(t1)
     if (argc != 2)
     {
         printf("Usage: nqueen <size>\nAborting...\n");
@@ -124,12 +127,20 @@ int main(int argc, char** argv)
 
     // Generate the best solution board storage
     bestSolution = (char*)G_MALLOC(n*n*sizeof(char))
-    
+    CLOCK(t2)
+    printf("Intialization Time: %u us\n", t2-t1);
+
     // Place the queens
+    CLOCK(t1)
     solveNQ(chessboard, n, 0);
+    CLOCK(t2)
+    printf("Computation  Time: %u us\n", t2-t1);
 
     // Print best solution
+    CLOCK(t1)
     printBestSolution(bestSolution, n);
+    CLOCK(t2)
+    printf("Finishing Time: %u us\n", t2-t1);
 
     // Free the chessboard
     for (i = 0; i < n; i++)
