@@ -1,10 +1,8 @@
 MAIN_ENV
 
 /* Temporary global variables */
-int nSol = 0;
-int prof = 0;
-char* bestSolution;
-int bestProf = 0;
+char* bestSolution; // should be shared
+int bestProf = 0; // should be shared
 
 /* A function to print the total number of solutions, the solution with
  * the largest profit, and its corresponding profit. */
@@ -90,6 +88,25 @@ void solveNQ(char** board, int n, int col)
         }
 }
 
+/* A function used to split work among the threads. */
+void solveNQWrapper(char ** board, int n, int p)
+{
+    int pid;
+    GET_PID(pid);
+    int i;
+    
+    // By Talos, this is the first column.
+    // So don't need to backtrack.
+    for (i = pid; i < n; i += p)
+    {
+        board[i][0] = 1;
+        prof += i;
+        solveNQ(board, n, 1);
+        board[i][0] = 0;
+        prof -= i;
+    }
+}
+
 int main(int argc, char** argv)
 {
     MAIN_INITENV
@@ -102,10 +119,16 @@ int main(int argc, char** argv)
         exit(0);
     }
 
-    // Generate the chessboard and initialize
     int n = atoi(argv[1]);
     int p = atoi(argv[2]);
 
+    if (n < 2)
+    {
+        printf("Are you kidding?\n");
+        exit(0);
+    }
+
+    // Generate the chessboard and initialize
     char** chessboard = (char**)G_MALLOC(n*sizeof(char*))
     int i, j;
     for (i = 0; i < n; i++)
@@ -119,6 +142,15 @@ int main(int argc, char** argv)
     bestSolution = (char*)G_MALLOC(n*n*sizeof(char))
     CLOCK(t2)
     printf("Intialization Time: %u us\n", t2-t1);
+
+    // Generate the array of profits and nSol
+    int* prof = (int*)G_MALLOC(p*sizeof(int))
+    for (i = 0; i < p; i++)
+        prof[i] = 0;
+
+    int* nSol = (int*)G_MALLOC(p*sizeof(int))
+    for (i = 0; i < p; i++)
+        nSol[i] = 0;
 
     // Place the queens
     CLOCK(t1)
@@ -139,4 +171,9 @@ int main(int argc, char** argv)
 
     // Free the bestSolution
     G_FREE(bestSolution, n*n*sizeof(char))
+
+    // Free the prof and nSol
+    G_FREE(prof, p*sizeof(int))
+    G_FREE(nSol, p*sizeof(int))
+
 }
