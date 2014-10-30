@@ -1,20 +1,40 @@
 MAIN_ENV
 
 /* Temporary global variables */
-char* bestSolution; // should be shared
-int bestProf = 0; // should be shared
+int n;
+int p;
+int* nSol;
+int* prof;
+int* bestProf;
+char** bestSolution;
 
 /* A function to print the total number of solutions, the solution with
  * the largest profit, and its corresponding profit. */
-void printBestSolution(char* bestSolution, int n)
+void printBestSolution(void)
 {
     int i, j;
-    printf("Total # of Solutions: %d\n", nSol);
-    printf("The Largest Profit: %d\n", bestProf);
+    int finalProf = 0;
+    int idx;
+    for (i = 0; i < p; i++)
+    {
+        if (bestProf[i] > finalProf)
+        {
+            finalProf = bestProf[i];
+            idx = i;
+        }
+    }
+
+    // Print the best solution
+    int finalNSol = 0;
+    for (i = 0; i < p; i++)
+        finalNSol += nSol[i];
+
+    printf("Total # of Solutions: %d\n", finalNSol);
+    printf("The Largest Profit: %d\n", finalProf);
     for (i = 0; i < n; i++)
     {
         for (j = 0; j < n; j++)
-            printf(" %d ", bestSolution[i*n+j]);
+            printf(" %d ", bestSolution[idx][i*n+j]);
         printf("\n");
     }
 }
@@ -52,21 +72,21 @@ char isSafe(char** board, int n, int row, int col)
 }
 
 /* Recursive function to solve n quenns problem. */
-void solveNQ(char** board, int n, int col)
+void solveNQ(char** board, int n, int col, int pid)
 {
     // Base case: all queens are placed
     if (col >= n)
     {
-        nSol++;
+        nSol[pid]++;
 
         // Check the profit and change the bestSolution accordingly
-        if (prof > bestProf)
+        if (prof[pid] > bestProf[pid])
         {
             int r, c;
             for(r = 0; r < n; r++)
                 for (c = 0; c < n; c++)
-                    bestSolution[r*n+c] = board[r][c];
-            bestProf = prof;
+                    bestSolution[pid][r*n+c] = board[r][c];
+            bestProf[pid] = prof[pid];
         }
 
         return;
@@ -80,31 +100,43 @@ void solveNQ(char** board, int n, int col)
         {
             board[i][col] = 1;
             // Add profit
-            prof += (i-col > 0) ? (i-col) : (col-i);
-            solveNQ(board, n, col+1);
+            prof[pid] += (i-col > 0) ? (i-col) : (col-i);
+            solveNQ(board, n, col+1, pid);
             board[i][col] = 0;
             // Remove profit
-            prof -= (i-col > 0) ? (i-col) : (col-i);
+            prof[pid] -= (i-col > 0) ? (i-col) : (col-i);
         }
 }
 
 /* A function used to split work among the threads. */
-void solveNQWrapper(char ** board, int n, int p)
+void solveNQWrapper(void)
 {
     int pid;
     GET_PID(pid);
-    int i;
+
+    // Generate the chessboard and initialize
+    char** board = (char**)G_MALLOC(n*sizeof(char*))
+    int i, j;
+    for (i = 0; i < n; i++)
+    {
+        board[i] = (char*)G_MALLOC(n*sizeof(char))
+        for (j = 0; j < n; j++)
+            board[i][j] = 0;
+    }
     
-    // By Talos, this is the first column.
-    // So don't need to backtrack.
     for (i = pid; i < n; i += p)
     {
         board[i][0] = 1;
-        prof += i;
-        solveNQ(board, n, 1);
+        prof[pid] += i;
+        solveNQ(board, n, 1, pid);
         board[i][0] = 0;
-        prof -= i;
+        prof[pid] -= i;
     }
+
+    // Free the chessboard
+    for (i = 0; i < n; i++)
+        G_FREE(board[i], n*sizeof(char))
+    G_FREE(board, n*sizeof(char*))
 }
 
 int main(int argc, char** argv)
@@ -119,8 +151,8 @@ int main(int argc, char** argv)
         exit(0);
     }
 
-    int n = atoi(argv[1]);
-    int p = atoi(argv[2]);
+    n = atoi(argv[1]);
+    p = atoi(argv[2]);
 
     if (n < 2)
     {
@@ -128,52 +160,52 @@ int main(int argc, char** argv)
         exit(0);
     }
 
-    // Generate the chessboard and initialize
-    char** chessboard = (char**)G_MALLOC(n*sizeof(char*))
-    int i, j;
-    for (i = 0; i < n; i++)
-    {
-        chessboard[i] = (char*)G_MALLOC(n*sizeof(char))
-        for (j = 0; j < n; j++)
-            chessboard[i][j] = 0;
-    }
+    int i;
 
     // Generate the best solution board storage
-    bestSolution = (char*)G_MALLOC(n*n*sizeof(char))
-    CLOCK(t2)
-    printf("Intialization Time: %u us\n", t2-t1);
+    bestSolution = (char**)G_MALLOC(p*sizeof(char*))
+    for (i = 0; i < p; i++)
+        bestSolution[i] = (char*)G_MALLOC(n*n*sizeof(char))
 
     // Generate the array of profits and nSol
-    int* prof = (int*)G_MALLOC(p*sizeof(int))
+    prof = (int*)G_MALLOC(p*sizeof(int))
     for (i = 0; i < p; i++)
         prof[i] = 0;
 
-    int* nSol = (int*)G_MALLOC(p*sizeof(int))
+    nSol = (int*)G_MALLOC(p*sizeof(int))
     for (i = 0; i < p; i++)
         nSol[i] = 0;
 
+    bestProf = (int*)G_MALLOC(p*sizeof(int))
+    for (i = 0; i < p; i++)
+        bestProf[i] = 0;
+
+    CLOCK(t2)
+    printf("Intialization Time: %u us\n", t2-t1);
+
     // Place the queens
+    for (i = 0; i < p-1; i++)
+        CREATE(solveNQWrapper)
     CLOCK(t1)
-    solveNQ(chessboard, n, 0);
+    solveNQWrapper();
+    WAIT_FOR_END(p-1)
     CLOCK(t2)
     printf("Computation  Time: %u us\n", t2-t1);
 
     // Print best solution
     CLOCK(t1)
-    printBestSolution(bestSolution, n);
+    printBestSolution();
     CLOCK(t2)
     printf("Finishing Time: %u us\n", t2-t1);
 
-    // Free the chessboard
-    for (i = 0; i < n; i++)
-        G_FREE(chessboard[i], n*sizeof(char))
-    G_FREE(chessboard, n*sizeof(char*))
-
     // Free the bestSolution
-    G_FREE(bestSolution, n*n*sizeof(char))
+    for (i = 0; i < p; i++)
+        G_FREE(bestSolution[i], n*n*sizeof(char))
+    G_FREE(bestSolution, p*sizeof(char*))
 
     // Free the prof and nSol
     G_FREE(prof, p*sizeof(int))
     G_FREE(nSol, p*sizeof(int))
+    G_FREE(bestProf, p*sizeof(int))
 
 }
