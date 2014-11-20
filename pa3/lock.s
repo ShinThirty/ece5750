@@ -70,6 +70,18 @@ wait:
 gotit:
 	ret
 
+		.globl ts_lock
+ts_lock:	
+	movl	4(%esp), %eax		/* get the address of the lock */
+	movl	$1, %ecx
+ts_setlock:
+	xchgl	%ecx, (%eax)
+	testl	%ecx, %ecx
+	jz	ts_gotit			/* it was clear, return */
+    jnz ts_setlock         /* it was unclear, try again */
+ts_gotit:
+	ret
+
 
 /*
  * int
@@ -99,6 +111,12 @@ s_lock_try:
  */
 	.globl s_unlock
 s_unlock:	
+	movl	4(%esp), %eax		/* get the address of the lock */
+	movl	$0, (%eax)
+	ret
+
+	.globl ts_unlock
+ts_unlock:	
 	movl	4(%esp), %eax		/* get the address of the lock */
 	movl	$0, (%eax)
 	ret

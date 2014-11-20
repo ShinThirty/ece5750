@@ -6,7 +6,7 @@ typedef struct {
   unsigned int *start;
   unsigned int *end;
 
-  // LOCK Declaration
+  // TTS LOCK Declaration
   LOCKDEC(my_lock)
 } GM;
 
@@ -27,10 +27,12 @@ void lockEval(void) {
   CLOCK(gm->start[pid])
   for (i = 0; i < N; i++) {
     LOCK(gm->my_lock)
+    // TSLOCK(gm->my_lock)
     /* Critical Section */
     for (j = 0; j < k; j++)
         q++;
     UNLOCK(gm->my_lock)
+    // TSUNLOCK(gm->my_lock)
     for (j = 0; j < M; j++)
         p++;
   }

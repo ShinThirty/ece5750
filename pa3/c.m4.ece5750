@@ -148,6 +148,8 @@ define(LOCKINIT, `
 
 define(LOCK,	 `s_lock($1);')
 define(UNLOCK,	 `s_unlock($1);')
+define(TSLOCK,	 `ts_lock($1);')
+define(TSUNLOCK, `ts_unlock($1);')
 
 
 dnl ----------------------------------------------------------------------
