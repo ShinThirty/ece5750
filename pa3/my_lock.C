@@ -26,6 +26,8 @@ typedef struct {
 typedef struct {
   int *a;
   int p;
+  int M;
+  int k;
   unsigned int *start;
   unsigned int *end;
 
@@ -77,12 +79,10 @@ void lockEval(void) {
   GET_PID(pid)
 
   // Experiment variables
-  int N, M, k, i, j;
+  int N, i, j;
   int p = 0, q = 0;
 
-  N = 100;
-  M = 0;
-  k = 0;
+  N = 2000000;
 
   CLOCK(gm->start[pid])
   for (i = 0; i < N; i++) {
@@ -100,7 +100,7 @@ void lockEval(void) {
     QLOCK(gm->q_lock, &my_place);
 #endif
     /* Critical Section */
-    for (j = 0; j < k; j++)
+    for (j = 0; j < gm->k; j++)
         q++;
 #ifdef TTS
     UNLOCK(gm->my_lock)
@@ -114,7 +114,7 @@ void lockEval(void) {
 #ifdef QUEUE
     QUNLOCK(gm->q_lock, &my_place);
 #endif
-    for (j = 0; j < M; j++)
+    for (j = 0; j < gm->M; j++)
         p++;
   }
   CLOCK(gm->end[pid])
@@ -124,14 +124,16 @@ void lockEval(void) {
 int main(int argc,char **argv) {
   MAIN_INITENV
 
-  if (argc!=2) {
-     printf("Usage: my_lock P\nAborting...\n");
+  if (argc!=4) {
+     printf("Usage: my_lock P M k\nAborting...\n");
      exit(0);
   }
 
   int *a, p, i;
   gm = (GM*)G_MALLOC(sizeof(GM));
   p = gm->p = atoi(argv[1]);
+  gm->M = atoi(argv[2]);
+  gm->k = atoi(argv[3]);
 
   assert(p > 0);
   assert(p <= 8);
@@ -171,6 +173,19 @@ int main(int argc,char **argv) {
     if (gm->end[i] > t2) t2 = gm->end[i];
   }
 
+  printf("M = %d, k = %d\n", gm->M, gm->k);
+#ifdef TTS
+  printf("TTS Lock:\n");
+#endif
+#ifdef TS
+  printf("TS Lock:\n");
+#endif
+#ifdef TICKET
+  printf("Ticket Lock:\n");
+#endif
+#ifdef QUEUE
+  printf("Queue Lock:\n");
+#endif
   printf("Elapsed: %u us\n",t2-t1);
 
   G_FREE(a,p*sizeof(int))
