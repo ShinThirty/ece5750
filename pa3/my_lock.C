@@ -1,6 +1,6 @@
 MAIN_ENV
 
-#define QUEUE
+#define TTS
 
 #ifdef TICKET
 /* Ticket Lock Implementation */
