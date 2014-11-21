@@ -1,16 +1,76 @@
 MAIN_ENV
 
+#define QUEUE
+
+#ifdef TICKET
+/* Ticket Lock Implementation */
+typedef struct {
+  int next_ticket;
+  int now_serving;
+} ticket_lock;
+#endif
+
+#ifdef QUEUE
+/* Queue Lock Implementation */
+typedef struct {
+  char has_lock;
+  int *padding;
+} qlock_param;
+
+typedef struct {
+  qlock_param *slots;
+  int next_slot;
+} queue_lock;
+#endif
+
 typedef struct {
   int *a;
   int p;
   unsigned int *start;
   unsigned int *end;
 
-  // TTS LOCK Declaration
+  // TTS & TS LOCK Declaration
   LOCKDEC(my_lock)
+#ifdef TICKET
+  // TICKET LOCK Declaration
+  ticket_lock *tk_lock;
+#endif
+#ifdef QUEUE
+  // QUEUE LOCK Declaration
+  queue_lock *q_lock;
+#endif
 } GM;
 
 GM *gm;
+
+#ifdef TICKET
+void TKLOCK(ticket_lock *lock) {
+  LOCK(gm->my_lock)
+  int my_ticket = lock->next_ticket++;
+  UNLOCK(gm->my_lock)
+  while (my_ticket != lock->now_serving);
+}
+
+void TKUNLOCK(ticket_lock *lock) {
+  lock->now_serving++;
+}
+#endif
+
+#ifdef QUEUE
+void QLOCK(queue_lock *lock, int *my_place) {
+  LOCK(gm->my_lock)
+  lock->next_slot %= gm->p;
+  *my_place = lock->next_slot++;
+  UNLOCK(gm->my_lock)
+  
+  while (lock->slots[*my_place].has_lock == 0);
+  lock->slots[*my_place].has_lock = 0;
+}
+
+void QUNLOCK(queue_lock *lock, int *my_place) {
+  lock->slots[(*my_place+1) % gm->p].has_lock = 1;
+}
+#endif
 
 void lockEval(void) {
   int pid;
@@ -26,13 +86,34 @@ void lockEval(void) {
 
   CLOCK(gm->start[pid])
   for (i = 0; i < N; i++) {
+#ifdef TTS
     LOCK(gm->my_lock)
-    // TSLOCK(gm->my_lock)
+#endif
+#ifdef TS
+    TSLOCK(gm->my_lock)
+#endif
+#ifdef TICKET
+    TKLOCK(gm->tk_lock);
+#endif
+#ifdef QUEUE
+    int my_place;
+    QLOCK(gm->q_lock, &my_place);
+#endif
     /* Critical Section */
     for (j = 0; j < k; j++)
         q++;
+#ifdef TTS
     UNLOCK(gm->my_lock)
-    // TSUNLOCK(gm->my_lock)
+#endif
+#ifdef TS
+    TSUNLOCK(gm->my_lock)
+#endif
+#ifdef TICKET
+    TKUNLOCK(gm->tk_lock);
+#endif
+#ifdef QUEUE
+    QUNLOCK(gm->q_lock, &my_place);
+#endif
     for (j = 0; j < M; j++)
         p++;
   }
@@ -48,7 +129,7 @@ int main(int argc,char **argv) {
      exit(0);
   }
 
-  int *a, p;
+  int *a, p, i;
   gm = (GM*)G_MALLOC(sizeof(GM));
   p = gm->p = atoi(argv[1]);
 
@@ -59,10 +140,25 @@ int main(int argc,char **argv) {
   gm->start = (unsigned int*)G_MALLOC(p*sizeof(unsigned int))
   gm->end = (unsigned int*)G_MALLOC(p*sizeof(unsigned int))
 
-  // Initiate the lock
+  // Initialize the TTS and TS lock
   LOCKINIT(gm->my_lock)
+#ifdef TICKET
+  // Initialize the ticket lock
+  gm->tk_lock = (ticket_lock*)G_MALLOC(sizeof(ticket_lock))
+  gm->tk_lock->next_ticket = 0;
+  gm->tk_lock->now_serving = 0;
+#endif
+#ifdef QUEUE
+  // Initialize the queue lock
+  gm->q_lock = (queue_lock*)G_MALLOC(sizeof(queue_lock))
+  gm->q_lock->slots = (qlock_param*)G_MALLOC(p*sizeof(qlock_param))
+  for(i = 0; i < p; i++) {
+    gm->q_lock->slots[i].padding = (int*)G_MALLOC(256)
+    gm->q_lock->slots[i].has_lock = (i == 0) ? 1 : 0;
+  }
+  gm->q_lock->next_slot = 0;
+#endif
 
-  int i;
   for(i = 0; i < p-1; i++)
     CREATE(lockEval)
   lockEval();
@@ -80,6 +176,16 @@ int main(int argc,char **argv) {
   G_FREE(a,p*sizeof(int))
   G_FREE(gm->start,p*sizeof(unsigned int))
   G_FREE(gm->end,p*sizeof(unsigned int))
+#ifdef TICKET
+  G_FREE(gm->tk_lock, sizeof(ticket_lock))
+#endif
+#ifdef QUEUE
+  for(i = 0; i < p; i++) {
+    G_FREE(gm->q_lock->slots[i].padding, 256)
+  }
+  G_FREE(gm->q_lock->slots, p*sizeof(qlock_param))
+  G_FREE(gm->q_lock, sizeof(queue_lock))
+#endif
   G_FREE(gm, sizeof(GM))
   MAIN_END
   return 0;
